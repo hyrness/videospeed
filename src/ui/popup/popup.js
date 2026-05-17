@@ -24,6 +24,8 @@ let currentScope = 'global';
 let activeHostname = null;
 // Cached domainSpeeds map from storage (kept in sync via storage.onChanged).
 let domainSpeedsCache = {};
+// Cached globalSpeed from storage. null = unset (no popup-set Global override).
+let globalSpeedCache = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   loadSettingsAndInitialize();
@@ -114,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
           storage.domainSpeeds && typeof storage.domainSpeeds === 'object'
             ? storage.domainSpeeds
             : {};
+        globalSpeedCache = isValidSpeed(storage.globalSpeed) ? storage.globalSpeed : null;
         currentScope = VALID_SCOPES.includes(storage.popupScope) ? storage.popupScope : 'global';
         currentSpeed = resolveDisplaySpeed(storage);
 
@@ -141,10 +144,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      if (changes.lastSpeed && currentScope === 'global') {
-        const next = changes.lastSpeed.newValue;
-        currentSpeed = isValidSpeed(next) ? next : null;
-        renderCurrentSpeed();
+      if (changes.globalSpeed) {
+        const next = changes.globalSpeed.newValue;
+        globalSpeedCache = isValidSpeed(next) ? next : null;
+        renderScopeUI();
+        if (currentScope === 'global') {
+          currentSpeed = globalSpeedCache;
+          renderCurrentSpeed();
+        }
       }
     });
   }
@@ -160,10 +167,10 @@ document.addEventListener('DOMContentLoaded', () => {
       );
     }
     if (currentScope === 'global') {
-      return isValidSpeed(storage.lastSpeed) ? storage.lastSpeed : null;
+      return isValidSpeed(storage.globalSpeed) ? storage.globalSpeed : null;
     }
-    // 'tab' scope has no stored value — start at the current global as a hint.
-    return isValidSpeed(storage.lastSpeed) ? storage.lastSpeed : null;
+    // 'tab' scope has no stored value — start at the popup Global as a hint.
+    return isValidSpeed(storage.globalSpeed) ? storage.globalSpeed : null;
   }
 
   // ---- Scope UI ----------------------------------------------------------
@@ -212,12 +219,25 @@ document.addEventListener('DOMContentLoaded', () => {
       hostnameEl.textContent = 'One-off — not persisted';
       clearBtn.classList.add('hide');
     } else {
-      hostnameEl.textContent = 'Applies everywhere';
-      clearBtn.classList.add('hide');
+      // Global
+      hostnameEl.textContent =
+        globalSpeedCache !== null
+          ? `Applies everywhere • saved ${formatSpeed(globalSpeedCache)}×`
+          : 'Applies everywhere';
+      clearBtn.classList.toggle('hide', globalSpeedCache === null);
     }
   }
 
   function clearDomainOverride() {
+    if (currentScope === 'global') {
+      chrome.storage.sync.remove('globalSpeed', () => {
+        globalSpeedCache = null;
+        currentSpeed = null;
+        renderScopeUI();
+        renderCurrentSpeed();
+      });
+      return;
+    }
     if (!activeHostname) {
       return;
     }
@@ -302,7 +322,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Persist the new speed according to the active scope.
-  // Tab: nothing. Domain: domainSpeeds[host]. Global: lastSpeed.
+  // Tab: nothing. Domain: domainSpeeds[host]. Global: globalSpeed.
+  // (globalSpeed is independent of rememberSpeed so it applies on new tabs.)
   function persistForScope(speed) {
     if (!isValidSpeed(speed)) {
       return;
@@ -322,7 +343,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     if (currentScope === 'global') {
-      chrome.storage.sync.set({ lastSpeed: speed });
+      globalSpeedCache = speed;
+      chrome.storage.sync.set({ globalSpeed: speed }, () => {
+        renderScopeUI();
+      });
     }
   }
 

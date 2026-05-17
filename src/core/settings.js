@@ -147,6 +147,10 @@ if (!window.VSC.VideoSpeedConfig) {
           storage.domainSpeeds && typeof storage.domainSpeeds === 'object'
             ? storage.domainSpeeds
             : {};
+        this.settings.globalSpeed =
+          typeof storage.globalSpeed === 'number' && Number.isFinite(storage.globalSpeed)
+            ? storage.globalSpeed
+            : null;
 
         // lastSpeed = null means "no user choice yet this session."
         // getTargetSpeed() falls through to siteDefaultSpeed or 1.0.
@@ -154,8 +158,9 @@ if (!window.VSC.VideoSpeedConfig) {
         // Priority on fresh load:
         //   1. siteDefaultSpeed (per-site rule) — always wins if configured
         //   2. domainSpeeds[hostname] (popup "Domain" scope) — always applied if set
-        //   3. lastSpeed from storage (rememberSpeed=true, no per-site/domain rule)
-        //   4. null → baseline 1.0
+        //   3. globalSpeed (popup "Global" scope) — always applied if set
+        //   4. lastSpeed from storage (rememberSpeed=true, no per-site/domain/global rule)
+        //   5. null → baseline 1.0
         const domainSpeed = getDomainSpeed(
           this.settings.domainSpeeds,
           normalizeHostname(typeof window !== 'undefined' ? window.location.href : '')
@@ -164,6 +169,8 @@ if (!window.VSC.VideoSpeedConfig) {
           this.settings.lastSpeed = null;
         } else if (domainSpeed !== null) {
           this.settings.lastSpeed = domainSpeed;
+        } else if (this.settings.globalSpeed !== null) {
+          this.settings.lastSpeed = this.settings.globalSpeed;
         } else if (this.settings.rememberSpeed) {
           this.settings.lastSpeed = Number(storage.lastSpeed) || null;
         } else {

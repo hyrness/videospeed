@@ -35,8 +35,12 @@ if (!window.VSC.Constants.DEFAULT_SETTINGS) {
     enabled: true, // default enabled
     rememberSpeed: false, // default: false
     // Map<hostname, speed> for popup "Domain" scope overrides.
-    // Hostname is normalized (no leading www.). Wins over lastSpeed during init.
+    // Hostname is normalized (no leading www.). Wins over globalSpeed during init.
     domainSpeeds: {},
+    // Popup "Global" scope override. Applied on init regardless of rememberSpeed
+    // (rememberSpeed only governs keyboard-driven persistence to lastSpeed).
+    // null = unset; the resolver falls through to lastSpeed/1.0.
+    globalSpeed: null,
     // Last-selected popup scope ('tab' | 'domain' | 'global').
     popupScope: 'global',
     exclusiveKeys: false, // default: false
