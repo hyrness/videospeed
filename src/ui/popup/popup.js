@@ -1,3 +1,5 @@
+import { formatSpeed, isPresetMatch, clampSpeed, isValidSpeed } from './popup-helpers.js';
+
 // Message type constants
 const MessageTypes = {
   SET_SPEED: 'VSC_SET_SPEED',
@@ -5,6 +7,13 @@ const MessageTypes = {
   RESET_SPEED: 'VSC_RESET_SPEED',
   TOGGLE_DISPLAY: 'VSC_TOGGLE_DISPLAY',
 };
+
+// Preferred reset speed (the value applied when the center button is clicked).
+// Captured from key bindings during init; defaults to 1.0.
+let preferredResetSpeed = 1.0;
+// Last known playback speed (mirrors chrome.storage.sync.lastSpeed).
+// null = "no user choice yet" — fall back to preferredResetSpeed for display.
+let currentSpeed = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   // Load settings and initialize speed controls
@@ -83,11 +92,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      preferredResetSpeed = resetSpeed;
+      currentSpeed = isValidSpeed(storage.lastSpeed) ? storage.lastSpeed : null;
+
       // Update the UI with dynamic values
       updateSpeedControlsUI(slowerStep, fasterStep, resetSpeed);
+      renderCurrentSpeed();
 
       // Initialize event listeners
       initializeSpeedControls();
+    });
+
+    // Live updates: another tab (or the content script) writing lastSpeed
+    // should reflect in the open popup without a refresh.
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'sync' || !changes.lastSpeed) {
+        return;
+      }
+      const next = changes.lastSpeed.newValue;
+      currentSpeed = isValidSpeed(next) ? next : null;
+      renderCurrentSpeed();
+    });
+  }
+
+  // Reflect currentSpeed into the center display + active preset highlight.
+  function renderCurrentSpeed() {
+    const speedForDisplay = currentSpeed === null ? preferredResetSpeed : currentSpeed;
+    const resetBtn = document.querySelector('#speed-reset');
+    if (resetBtn) {
+      resetBtn.textContent = formatSpeed(speedForDisplay);
+    }
+    document.querySelectorAll('.preset-btn').forEach((btn) => {
+      const presetSpeed = parseFloat(btn.dataset.speed);
+      btn.classList.toggle('active', isPresetMatch(speedForDisplay, presetSpeed));
     });
   }
 
@@ -115,21 +152,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Speed Control Functions
   function initializeSpeedControls() {
+    const applyOptimistic = (speed) => {
+      currentSpeed = clampSpeed(speed);
+      renderCurrentSpeed();
+    };
+
     // Set up speed control button listeners
     document.querySelector('#speed-decrease').addEventListener('click', function () {
       const delta = parseFloat(this.dataset.delta);
       adjustSpeed(delta);
+      const base = currentSpeed === null ? preferredResetSpeed : currentSpeed;
+      applyOptimistic(base + delta);
     });
 
     document.querySelector('#speed-increase').addEventListener('click', function () {
       const delta = parseFloat(this.dataset.delta);
       adjustSpeed(delta);
+      const base = currentSpeed === null ? preferredResetSpeed : currentSpeed;
+      applyOptimistic(base + delta);
     });
 
-    document.querySelector('#speed-reset').addEventListener('click', function () {
-      // Set directly to preferred speed instead of toggling
-      const preferredSpeed = parseFloat(this.textContent);
-      setSpeed(preferredSpeed);
+    document.querySelector('#speed-reset').addEventListener('click', () => {
+      // Reset to the configured preferred speed, not the displayed (current) value.
+      setSpeed(preferredResetSpeed);
+      applyOptimistic(preferredResetSpeed);
     });
 
     // Set up preset button listeners
@@ -137,6 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.addEventListener('click', function () {
         const speed = parseFloat(this.dataset.speed);
         setSpeed(speed);
+        applyOptimistic(speed);
       });
     });
   }
