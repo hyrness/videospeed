@@ -58,7 +58,12 @@
 
 html,
 body {
-  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Roboto',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   font-size: 14px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
@@ -90,8 +95,6 @@ body {
   padding: 8px 20px;
   position: relative;
 }
-
-
 
 .footer-controls {
   display: flex;
@@ -152,9 +155,79 @@ body {
   color: var(--md-on-primary-container);
 }
 
+/* Scope selector */
+.scope-section {
+  padding: 12px 16px 0 16px;
+}
+
+.scope-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  background-color: var(--md-surface-variant);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.scope-tab {
+  border: none;
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+
+.scope-tab:hover {
+  color: var(--md-on-surface);
+}
+
+.scope-tab.active {
+  background-color: var(--md-primary);
+  color: var(--md-on-primary);
+}
+
+.scope-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+  margin-top: 8px;
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--md-on-surface-variant);
+}
+
+.scope-hostname {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scope-clear {
+  border: 1px solid var(--md-outline-variant);
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.scope-clear:hover {
+  background-color: var(--md-surface-variant);
+  color: var(--md-on-surface);
+}
+
 /* Speed section */
 .speed-section {
-  padding: 20px 20px 16px 20px;
+  padding: 16px 20px;
 }
 
 /* Speed controls */
@@ -310,7 +383,9 @@ body {
   background-color: currentColor;
   opacity: 0.1;
   transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
+  transition:
+    width 0.6s,
+    height 0.6s;
 }
 
 .control-btn:active::before,

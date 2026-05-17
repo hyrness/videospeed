@@ -407,17 +407,20 @@ class VideoSpeedExtension {
           if (message.payload && typeof message.payload.speed === 'number') {
             const { MIN, MAX } = window.VSC.Constants.SPEED_LIMITS;
             const targetSpeed = Math.min(Math.max(message.payload.speed, MIN), MAX);
+            // noPersist=true lets the popup suppress the rememberSpeed-driven
+            // storage write while still updating the in-memory authoritative
+            // speed (needed so event-manager doesn't fight back to a stale value).
+            const noPersist = message.payload.noPersist === true;
             videos.forEach((video) => {
               if (video.vsc) {
-                extension.actionHandler.adjustSpeed(video, targetSpeed);
+                extension.actionHandler.adjustSpeed(video, targetSpeed, { noPersist });
               } else {
                 video.playbackRate = targetSpeed;
               }
             });
 
-            // Log the successful operation
             window.VSC.logger?.debug(
-              `Set speed to ${targetSpeed} on ${videos.length} media elements`
+              `Set speed to ${targetSpeed} on ${videos.length} media elements (noPersist=${noPersist})`
             );
           }
           break;
@@ -425,9 +428,10 @@ class VideoSpeedExtension {
         case window.VSC.Constants.MESSAGE_TYPES.ADJUST_SPEED:
           if (message.payload && typeof message.payload.delta === 'number') {
             const delta = message.payload.delta;
+            const noPersist = message.payload.noPersist === true;
             videos.forEach((video) => {
               if (video.vsc) {
-                extension.actionHandler.adjustSpeed(video, delta, { relative: true });
+                extension.actionHandler.adjustSpeed(video, delta, { relative: true, noPersist });
               } else {
                 // Fallback for videos without controller
                 const { MIN: sMin, MAX: sMax } = window.VSC.Constants.SPEED_LIMITS;
@@ -437,7 +441,7 @@ class VideoSpeedExtension {
             });
 
             window.VSC.logger?.debug(
-              `Adjusted speed by ${delta} on ${videos.length} media elements`
+              `Adjusted speed by ${delta} on ${videos.length} media elements (noPersist=${noPersist})`
             );
           }
           break;

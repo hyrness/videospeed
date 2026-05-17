@@ -2,6 +2,8 @@
  * Settings management for Video Speed Controller
  */
 
+import { normalizeHostname, getDomainSpeed } from '../utils/hostname.js';
+
 window.VSC = window.VSC || {};
 
 if (!window.VSC.VideoSpeedConfig) {
@@ -141,16 +143,27 @@ if (!window.VSC.VideoSpeedConfig) {
 
         // Apply loaded settings
         this.settings.rememberSpeed = Boolean(storage.rememberSpeed);
+        this.settings.domainSpeeds =
+          storage.domainSpeeds && typeof storage.domainSpeeds === 'object'
+            ? storage.domainSpeeds
+            : {};
 
         // lastSpeed = null means "no user choice yet this session."
         // getTargetSpeed() falls through to siteDefaultSpeed or 1.0.
         //
         // Priority on fresh load:
         //   1. siteDefaultSpeed (per-site rule) — always wins if configured
-        //   2. lastSpeed from storage (rememberSpeed=true, no per-site rule)
-        //   3. null → baseline 1.0
+        //   2. domainSpeeds[hostname] (popup "Domain" scope) — always applied if set
+        //   3. lastSpeed from storage (rememberSpeed=true, no per-site/domain rule)
+        //   4. null → baseline 1.0
+        const domainSpeed = getDomainSpeed(
+          this.settings.domainSpeeds,
+          normalizeHostname(typeof window !== 'undefined' ? window.location.href : '')
+        );
         if (this.settings.siteDefaultSpeed) {
           this.settings.lastSpeed = null;
+        } else if (domainSpeed !== null) {
+          this.settings.lastSpeed = domainSpeed;
         } else if (this.settings.rememberSpeed) {
           this.settings.lastSpeed = Number(storage.lastSpeed) || null;
         } else {

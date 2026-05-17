@@ -34,6 +34,11 @@ if (!window.VSC.Constants.DEFAULT_SETTINGS) {
     lastSpeed: 1.0, // default 1x
     enabled: true, // default enabled
     rememberSpeed: false, // default: false
+    // Map<hostname, speed> for popup "Domain" scope overrides.
+    // Hostname is normalized (no leading www.). Wins over lastSpeed during init.
+    domainSpeeds: {},
+    // Last-selected popup scope ('tab' | 'domain' | 'global').
+    popupScope: 'global',
     exclusiveKeys: false, // default: false
     audioBoolean: true, // default: true (enable audio controller support)
     startHidden: false, // default: false

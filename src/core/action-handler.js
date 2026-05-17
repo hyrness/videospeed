@@ -402,7 +402,7 @@ class ActionHandler {
    * @private
    */
   _adjustSpeedInternal(video, value, options) {
-    const { relative = false, source = 'internal' } = options;
+    const { relative = false, source = 'internal', noPersist = false } = options;
 
     // Calculate target speed
     let targetSpeed;
@@ -436,7 +436,7 @@ class ActionHandler {
 
     // Fight detection is enforced upstream in event-manager.js.
     // External changes that reach here have already been approved (fight surrendered or speed matched).
-    this.setSpeed(video, targetSpeed, source);
+    this.setSpeed(video, targetSpeed, source, { noPersist });
   }
 
   /**
@@ -456,8 +456,13 @@ class ActionHandler {
    * @param {HTMLMediaElement} video - Video element
    * @param {number} speed - Target speed
    * @param {string} source - Change source: 'internal' (user/extension) or 'external' (site)
+   * @param {Object} [options]
+   * @param {boolean} [options.noPersist=false] - Skip the rememberSpeed-driven storage write.
+   *   Used by popup-initiated changes where the popup owns scope-aware persistence
+   *   (Tab=none, Domain=domainSpeeds, Global=lastSpeed).
    */
-  setSpeed(video, speed, source = 'internal') {
+  setSpeed(video, speed, source = 'internal', options = {}) {
+    const { noPersist = false } = options;
     const speedValue = speed.toFixed(2);
     const numericSpeed = Number(speedValue);
 
@@ -505,8 +510,9 @@ class ActionHandler {
     }
     speedIndicator.textContent = numericSpeed.toFixed(2);
 
-    // 6. Persist to storage only if rememberSpeed is enabled
-    if (source !== 'external' && this.config.settings.rememberSpeed) {
+    // 6. Persist to storage only if rememberSpeed is enabled and the caller
+    //    hasn't opted out (popup-initiated changes own their own persistence).
+    if (source !== 'external' && this.config.settings.rememberSpeed && !noPersist) {
       this.config.save({ lastSpeed: numericSpeed });
     }
 
