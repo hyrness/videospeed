@@ -84,6 +84,36 @@ async function loadBridge() {
   return captured[0] || null;
 }
 
+/** Load bridge and additionally capture its chrome.runtime.onMessage listener. */
+async function loadBridgeWithMessageCapture() {
+  const onChangedListeners = [];
+  const onMessageListeners = [];
+
+  const origStorageAdd = globalThis.chrome.storage.onChanged.addListener;
+  globalThis.chrome.storage.onChanged.addListener = (cb) => {
+    onChangedListeners.push(cb);
+    origStorageAdd(cb);
+  };
+
+  const origMsgAdd = globalThis.chrome.runtime.onMessage.addListener;
+  globalThis.chrome.runtime.onMessage.addListener = (cb) => {
+    onMessageListeners.push(cb);
+  };
+
+  vi.resetModules();
+  await import('../../../src/entries/content-bridge.js');
+  await vi.advanceTimersByTimeAsync(50);
+  await vi.advanceTimersByTimeAsync(10);
+
+  globalThis.chrome.storage.onChanged.addListener = origStorageAdd;
+  globalThis.chrome.runtime.onMessage.addListener = origMsgAdd;
+
+  return {
+    onChanged: onChangedListeners[0] || null,
+    onMessage: onMessageListeners[0] || null,
+  };
+}
+
 /** Collect CustomEvents on docEl. Returns { events, cleanup }. */
 function collectEvents(...names) {
   const events = [];
@@ -401,4 +431,147 @@ describe('content-bridge', () => {
   // so we can't unit-test the relay without enhancing the mock. The relay is
   // a trivial one-liner (line 119 of content-bridge.js) — tested via manual
   // popup interaction rather than unit tests.
+
+  // =========================================================================
+  // VSC_GET_SPEED — popup queries live playback rate for display
+  // =========================================================================
+  // Popup opens after a keyboard speed change need to show the actual current
+  // speed, not whatever was last persisted via the scope tabs. The bridge runs
+  // in the ISOLATED world but shares the DOM with the page, so it can read
+  // video.playbackRate directly without round-tripping through inject.js.
+
+  describe('VSC_GET_SPEED', () => {
+    afterEach(() => {
+      // Clean up any video/audio elements left in the document.
+      document.querySelectorAll('video, audio').forEach((el) => el.remove());
+    });
+
+    it('returns playbackRate from the only video on the page', async () => {
+      const video = document.createElement('video');
+      video.playbackRate = 1.3;
+      document.body.appendChild(video);
+
+      const { onMessage } = await loadBridgeWithMessageCapture();
+      expect(onMessage).not.toBeNull();
+
+      const responses = [];
+      onMessage({ type: 'VSC_GET_SPEED' }, {}, (r) => responses.push(r));
+
+      expect(responses).toHaveLength(1);
+      expect(responses[0]).toEqual({ speed: 1.3 });
+    });
+
+    it('prefers a playing video over a paused one', async () => {
+      const paused = document.createElement('video');
+      paused.playbackRate = 0.75;
+      Object.defineProperty(paused, 'paused', { value: true, configurable: true });
+
+      const playing = document.createElement('video');
+      playing.playbackRate = 1.5;
+      Object.defineProperty(playing, 'paused', { value: false, configurable: true });
+
+      document.body.appendChild(paused);
+      document.body.appendChild(playing);
+
+      const { onMessage } = await loadBridgeWithMessageCapture();
+
+      const responses = [];
+      onMessage({ type: 'VSC_GET_SPEED' }, {}, (r) => responses.push(r));
+
+      expect(responses[0]).toEqual({ speed: 1.5 });
+    });
+
+    it('returns null when the page has no media', async () => {
+      const { onMessage } = await loadBridgeWithMessageCapture();
+
+      const responses = [];
+      onMessage({ type: 'VSC_GET_SPEED' }, {}, (r) => responses.push(r));
+
+      expect(responses[0]).toEqual({ speed: null });
+    });
+
+    it('does not relay VSC_GET_SPEED to MAIN world (read-only handled in bridge)', async () => {
+      const video = document.createElement('video');
+      video.playbackRate = 1.0;
+      document.body.appendChild(video);
+
+      const { onMessage } = await loadBridgeWithMessageCapture();
+      const { events, cleanup } = collectEvents('VSC_MESSAGE');
+      eventCleanup = cleanup;
+
+      onMessage({ type: 'VSC_GET_SPEED' }, {}, () => {});
+
+      const relayed = events.filter((e) => e.detail?.type === 'VSC_GET_SPEED');
+      expect(relayed).toHaveLength(0);
+    });
+
+    it('relays unrelated message types to MAIN world (existing behavior intact)', async () => {
+      const { onMessage } = await loadBridgeWithMessageCapture();
+      const { events, cleanup } = collectEvents('VSC_MESSAGE');
+      eventCleanup = cleanup;
+
+      onMessage({ type: 'VSC_SET_SPEED', payload: { speed: 2.0 } }, {}, () => {});
+
+      const relayed = events.filter((e) => e.detail?.type === 'VSC_SET_SPEED');
+      expect(relayed).toHaveLength(1);
+      expect(relayed[0].detail.payload).toEqual({ speed: 2.0 });
+    });
+  });
+
+  describe('speed badge relay', () => {
+    it('relays playbackRate to the background on ratechange for media elements', async () => {
+      globalThis.chrome.runtime.sendMessage = vi.fn();
+      await loadBridge();
+
+      const video = document.createElement('video');
+      document.body.appendChild(video);
+      video.playbackRate = 1.5;
+      const expected = video.playbackRate; // jsdom may clamp; assert against actual
+
+      video.dispatchEvent(new Event('ratechange', { bubbles: true }));
+
+      expect(globalThis.chrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: 'VSC_SPEED',
+        speed: expected,
+      });
+
+      video.remove();
+    });
+
+    it('ignores ratechange events from non-media targets', async () => {
+      globalThis.chrome.runtime.sendMessage = vi.fn();
+      await loadBridge();
+
+      const div = document.createElement('div');
+      document.body.appendChild(div);
+      div.dispatchEvent(new Event('ratechange', { bubbles: true }));
+
+      expect(globalThis.chrome.runtime.sendMessage).not.toHaveBeenCalled();
+
+      div.remove();
+    });
+
+    // A video that mounts after page load (SPA players) at its default rate
+    // fires no ratechange, so the badge must also relay on media-ready events.
+    it.each(['loadedmetadata', 'canplay', 'play'])(
+      'relays playbackRate on %s for media elements',
+      async (eventType) => {
+        globalThis.chrome.runtime.sendMessage = vi.fn();
+        await loadBridge();
+
+        const video = document.createElement('video');
+        document.body.appendChild(video);
+        const expected = video.playbackRate;
+
+        video.dispatchEvent(new Event(eventType, { bubbles: true }));
+
+        expect(globalThis.chrome.runtime.sendMessage).toHaveBeenCalledWith({
+          type: 'VSC_SPEED',
+          speed: expected,
+        });
+
+        video.remove();
+      }
+    );
+  });
 });

@@ -93,6 +93,7 @@ meet.google.com`.replace(regStrip, ''),
     ADJUST_SPEED: 'VSC_ADJUST_SPEED',
     RESET_SPEED: 'VSC_RESET_SPEED',
     TOGGLE_DISPLAY: 'VSC_TOGGLE_DISPLAY',
+    GET_SPEED: 'VSC_GET_SPEED',
     TEARDOWN: 'VSC_TEARDOWN',
     REINIT: 'VSC_REINIT',
   };

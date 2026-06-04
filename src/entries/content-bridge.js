@@ -103,7 +103,27 @@ async function init() {
     });
 
     // --- Ongoing: popup/background message relay ---
-    chrome.runtime.onMessage.addListener((request) => {
+    chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+      // VSC_GET_SPEED: read playbackRate directly from the DOM. The ISOLATED
+      // world shares the DOM with the page, so we don't need to route through
+      // inject.js. Used by the popup to display the actual current speed,
+      // which storage-derived values miss when speed was changed via keyboard
+      // (lastSpeed is only written when rememberSpeed=true) or in-page UI.
+      if (request && request.type === 'VSC_GET_SPEED') {
+        const media = document.querySelectorAll('video, audio');
+        let target = null;
+        for (const m of media) {
+          if (!m.paused) {
+            target = m;
+            break;
+          }
+        }
+        if (!target && media.length > 0) {
+          target = media[0];
+        }
+        sendResponse({ speed: target ? target.playbackRate : null });
+        return;
+      }
       docEl.dispatchEvent(new CustomEvent('VSC_MESSAGE', { detail: request }));
     });
 
@@ -129,6 +149,41 @@ async function init() {
         }
       }
     };
+    // --- Ongoing: speed badge relay ---
+    // Forward the active media element's playbackRate to the background, which
+    // decides whether this tab is active and updates the toolbar badge.
+    //   - ratechange: speed actually changed (VSC-synthetic or native).
+    //   - loadedmetadata/canplay/play: a video that mounts after page load
+    //     (SPA players) at its default rate fires no ratechange, so without
+    //     these the badge would never reflect a freshly appeared video.
+    //
+    // Listen on `window` in the CAPTURE phase — not docEl. inject.js's MAIN-world
+    // event-manager has a `document`-capture ratechange handler that calls
+    // event.stopImmediatePropagation() while fighting back during its own speed
+    // changes. Capture runs window → document → …, and stopImmediatePropagation
+    // halts the shared cross-world dispatch, so a docEl/document listener never
+    // sees VSC-initiated changes. `window` is upstream of `document`, so we read
+    // the rate before event-manager can swallow the event.
+    const SPEED_RELAY_EVENTS = ['ratechange', 'loadedmetadata', 'canplay', 'play'];
+    const relaySpeed = (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLMediaElement)) {
+        return;
+      }
+      try {
+        chrome.runtime.sendMessage({ type: 'VSC_SPEED', speed: target.playbackRate });
+      } catch (err) {
+        if (err.message?.includes('Extension context invalidated')) {
+          for (const type of SPEED_RELAY_EVENTS) {
+            window.removeEventListener(type, relaySpeed, true);
+          }
+        }
+      }
+    };
+    for (const type of SPEED_RELAY_EVENTS) {
+      window.addEventListener(type, relaySpeed, true);
+    }
+
     docEl.addEventListener('VSC_WRITE_STORAGE', handleWriteStorage);
   } catch (error) {
     console.error('[VSC] Bridge init failed:', error);

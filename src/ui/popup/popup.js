@@ -7,6 +7,7 @@ const MessageTypes = {
   ADJUST_SPEED: 'VSC_ADJUST_SPEED',
   RESET_SPEED: 'VSC_RESET_SPEED',
   TOGGLE_DISPLAY: 'VSC_TOGGLE_DISPLAY',
+  GET_SPEED: 'VSC_GET_SPEED',
 };
 
 const VALID_SCOPES = ['tab', 'domain', 'global'];
@@ -124,6 +125,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderScopeUI();
         renderCurrentSpeed();
         initializeSpeedControls();
+
+        queryLiveSpeed(tab);
       });
     });
 
@@ -154,6 +157,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     });
+  }
+
+  // Ask the active tab's content-bridge for the actual current playbackRate.
+  // Storage-derived values (globalSpeed, domainSpeeds) miss keyboard-driven
+  // changes: action-handler writes lastSpeed only when rememberSpeed=true,
+  // and the popup no longer listens to lastSpeed. Querying the page directly
+  // is the single source of truth for "what's playing right now."
+  function queryLiveSpeed(tab) {
+    if (!tab || typeof tab.id !== 'number') {
+      return;
+    }
+    try {
+      chrome.tabs.sendMessage(tab.id, { type: MessageTypes.GET_SPEED }, (response) => {
+        // chrome://, file://upload, extension pages, etc. have no content
+        // script — lastError fires. Keep the storage-derived display.
+        if (chrome.runtime.lastError) {
+          return;
+        }
+        if (response && isValidSpeed(response.speed)) {
+          currentSpeed = response.speed;
+          renderCurrentSpeed();
+        }
+      });
+    } catch {
+      // Defensive: sendMessage can throw synchronously on invalid tab ids.
+    }
   }
 
   // Pick the display value for the current scope from the raw storage object.
