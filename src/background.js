@@ -241,6 +241,24 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
   });
 });
 
+// A page load/reload re-injects the content script but fires no tab-activation
+// event, and a video sitting at its default rate emits no ratechange — so
+// neither the push nor the existing pull paths refresh the badge. Re-pull when
+// the *active* tab finishes loading so the badge tracks reloads and navigations.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status !== 'complete') {
+    return;
+  }
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+    if (chrome.runtime.lastError || !tabs || !tabs[0]) {
+      return;
+    }
+    if (tabs[0].id === tabId) {
+      badge.setActiveTab(tabId);
+    }
+  });
+});
+
 chrome.runtime.onMessage.addListener((request, sender) => {
   if (request && request.type === 'VSC_SPEED') {
     badge.handleSpeedMessage(request.speed, sender.tab?.id);
