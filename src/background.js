@@ -25,11 +25,27 @@ async function initializeIcon() {
   try {
     const storage = await chrome.storage.sync.get({ enabled: true });
     await updateIcon(storage.enabled);
+    badge.setEnabled(storage.enabled !== false);
   } catch (error) {
     console.error('Failed to initialize icon:', error);
     // Default to enabled if storage read fails
     await updateIcon(true);
+    badge.setEnabled(true);
   }
+  syncActiveTab();
+}
+
+/**
+ * Find the active tab in the focused window and hand it to the badge
+ * controller, which refreshes the badge from that tab's current speed.
+ */
+function syncActiveTab() {
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+    if (chrome.runtime.lastError || !tabs || !tabs[0]) {
+      return;
+    }
+    badge.setActiveTab(tabs[0].id);
+  });
 }
 
 /**
@@ -82,6 +98,11 @@ import {
   PREDEFINED_ACTIONS,
   DEFAULT_BINDINGS,
 } from './utils/key-maps.js';
+
+import { createBadgeController } from './core/speed-badge.js';
+
+const badge = createBadgeController(chrome);
+badge.init();
 
 /**
  * Migrate key bindings from v1 (keyCode integers) to v2 (event.code strings).
@@ -194,7 +215,35 @@ async function migrateKeyBindingsV2() {
  */
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'sync' && changes.enabled) {
-    updateIcon(changes.enabled.newValue !== false);
+    const isEnabled = changes.enabled.newValue !== false;
+    updateIcon(isEnabled);
+    badge.setEnabled(isEnabled);
+  }
+});
+
+/**
+ * Update the badge when the user switches tabs or windows, and when a content
+ * script reports a speed change in the active tab.
+ */
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  badge.setActiveTab(tabId);
+});
+
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    return;
+  }
+  chrome.tabs.query({ active: true, windowId }, (tabs) => {
+    if (chrome.runtime.lastError || !tabs || !tabs[0]) {
+      return;
+    }
+    badge.setActiveTab(tabs[0].id);
+  });
+});
+
+chrome.runtime.onMessage.addListener((request, sender) => {
+  if (request && request.type === 'VSC_SPEED') {
+    badge.handleSpeedMessage(request.speed, sender.tab?.id);
   }
 });
 
