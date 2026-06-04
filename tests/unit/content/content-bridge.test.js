@@ -550,5 +550,28 @@ describe('content-bridge', () => {
 
       div.remove();
     });
+
+    // A video that mounts after page load (SPA players) at its default rate
+    // fires no ratechange, so the badge must also relay on media-ready events.
+    it.each(['loadedmetadata', 'canplay', 'play'])(
+      'relays playbackRate on %s for media elements',
+      async (eventType) => {
+        globalThis.chrome.runtime.sendMessage = vi.fn();
+        await loadBridge();
+
+        const video = document.createElement('video');
+        document.body.appendChild(video);
+        const expected = video.playbackRate;
+
+        video.dispatchEvent(new Event(eventType, { bubbles: true }));
+
+        expect(globalThis.chrome.runtime.sendMessage).toHaveBeenCalledWith({
+          type: 'VSC_SPEED',
+          speed: expected,
+        });
+
+        video.remove();
+      }
+    );
   });
 });

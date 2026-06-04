@@ -150,10 +150,15 @@ async function init() {
       }
     };
     // --- Ongoing: speed badge relay ---
-    // Every rate change (VSC-synthetic or native) bubbles to docEl. We read the
-    // playbackRate off the shared DOM node and forward it to the background,
-    // which decides whether this tab is active and updates the toolbar badge.
-    const handleRateChange = (e) => {
+    // Forward the active media element's playbackRate to the background, which
+    // decides whether this tab is active and updates the toolbar badge.
+    //   - ratechange: speed actually changed (VSC-synthetic or native).
+    //   - loadedmetadata/canplay/play: a video that mounts after page load
+    //     (SPA players) at its default rate fires no ratechange, so without
+    //     these the badge would never reflect a freshly appeared video.
+    // All bubble/capture to docEl; we read playbackRate off the shared DOM node.
+    const SPEED_RELAY_EVENTS = ['ratechange', 'loadedmetadata', 'canplay', 'play'];
+    const relaySpeed = (e) => {
       const target = e.target;
       if (!(target instanceof HTMLMediaElement)) {
         return;
@@ -162,11 +167,15 @@ async function init() {
         chrome.runtime.sendMessage({ type: 'VSC_SPEED', speed: target.playbackRate });
       } catch (err) {
         if (err.message?.includes('Extension context invalidated')) {
-          docEl.removeEventListener('ratechange', handleRateChange, true);
+          for (const type of SPEED_RELAY_EVENTS) {
+            docEl.removeEventListener(type, relaySpeed, true);
+          }
         }
       }
     };
-    docEl.addEventListener('ratechange', handleRateChange, true);
+    for (const type of SPEED_RELAY_EVENTS) {
+      docEl.addEventListener(type, relaySpeed, true);
+    }
 
     docEl.addEventListener('VSC_WRITE_STORAGE', handleWriteStorage);
   } catch (error) {
