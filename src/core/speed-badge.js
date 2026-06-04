@@ -75,9 +75,16 @@ export function createBadgeController(chromeApi) {
       activeTabId = tabId;
       refreshFromActiveTab();
     },
-    handleSpeedMessage(speed, senderTabId) {
-      if (!enabled || senderTabId === null || senderTabId !== activeTabId) {
+    handleSpeedMessage(speed, senderTabId, isActiveTab) {
+      // Trust the sender's own active flag rather than the cached activeTabId:
+      // an MV3 service worker idles out and loses activeTabId, and wakes up ON
+      // this very message before the async re-sync restores it — gating on the
+      // cache would drop the update (e.g. keyboard speed changes never showed).
+      if (!enabled || !isActiveTab) {
         return;
+      }
+      if (typeof senderTabId === 'number') {
+        activeTabId = senderTabId; // keep the pull target fresh for later refreshes
       }
       applyBadge(formatSpeedBadge(speed));
     },

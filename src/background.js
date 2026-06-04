@@ -261,7 +261,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 
 chrome.runtime.onMessage.addListener((request, sender) => {
   if (request && request.type === 'VSC_SPEED') {
-    badge.handleSpeedMessage(request.speed, sender.tab?.id);
+    badge.handleSpeedMessage(request.speed, sender.tab?.id, sender.tab?.active === true);
   }
 });
 

@@ -59,23 +59,23 @@ describe('createBadgeController', () => {
     expect(api.action.setBadgeBackgroundColor).toHaveBeenCalledTimes(1);
   });
 
-  it('handleSpeedMessage sets the badge for the active tab when enabled', () => {
+  it('handleSpeedMessage sets the badge for a message from the active tab', () => {
     const api = makeChromeApi();
     const c = createBadgeController(api);
     c.setEnabled(true);
     c.setActiveTab(5);
     api.action.setBadgeText.mockClear();
-    c.handleSpeedMessage(1.5, 5);
+    c.handleSpeedMessage(1.5, 5, true);
     expect(api.action.setBadgeText).toHaveBeenCalledWith({ text: '1.5' });
   });
 
-  it('handleSpeedMessage ignores non-active tabs', () => {
+  it('handleSpeedMessage ignores messages from non-active tabs', () => {
     const api = makeChromeApi();
     const c = createBadgeController(api);
     c.setEnabled(true);
     c.setActiveTab(5);
     api.action.setBadgeText.mockClear();
-    c.handleSpeedMessage(2.0, 99);
+    c.handleSpeedMessage(2.0, 99, false);
     expect(api.action.setBadgeText).not.toHaveBeenCalled();
   });
 
@@ -85,8 +85,21 @@ describe('createBadgeController', () => {
     c.setActiveTab(5);
     c.setEnabled(false);
     api.action.setBadgeText.mockClear();
-    c.handleSpeedMessage(2.0, 5);
+    c.handleSpeedMessage(2.0, 5, true);
     expect(api.action.setBadgeText).not.toHaveBeenCalled();
+  });
+
+  // Regression: MV3 service workers idle out and lose in-memory state. When the
+  // SW wakes on the speed-change message itself, the cached active tab isn't
+  // restored yet — gating on it dropped the update (keyboard changes ignored).
+  // Trusting the sender's own active flag fixes this with no cached state.
+  it('handleSpeedMessage sets the badge from an active-tab message even with no cached active tab', () => {
+    const api = makeChromeApi();
+    const c = createBadgeController(api);
+    c.setEnabled(true);
+    // setActiveTab intentionally NOT called — simulates a freshly woken SW.
+    c.handleSpeedMessage(1.5, 42, true);
+    expect(api.action.setBadgeText).toHaveBeenLastCalledWith({ text: '1.5' });
   });
 
   it('setEnabled(false) clears the badge', () => {
