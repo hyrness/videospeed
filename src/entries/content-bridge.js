@@ -103,7 +103,27 @@ async function init() {
     });
 
     // --- Ongoing: popup/background message relay ---
-    chrome.runtime.onMessage.addListener((request) => {
+    chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+      // VSC_GET_SPEED: read playbackRate directly from the DOM. The ISOLATED
+      // world shares the DOM with the page, so we don't need to route through
+      // inject.js. Used by the popup to display the actual current speed,
+      // which storage-derived values miss when speed was changed via keyboard
+      // (lastSpeed is only written when rememberSpeed=true) or in-page UI.
+      if (request && request.type === 'VSC_GET_SPEED') {
+        const media = document.querySelectorAll('video, audio');
+        let target = null;
+        for (const m of media) {
+          if (!m.paused) {
+            target = m;
+            break;
+          }
+        }
+        if (!target && media.length > 0) {
+          target = media[0];
+        }
+        sendResponse({ speed: target ? target.playbackRate : null });
+        return;
+      }
       docEl.dispatchEvent(new CustomEvent('VSC_MESSAGE', { detail: request }));
     });
 
@@ -129,6 +149,25 @@ async function init() {
         }
       }
     };
+    // --- Ongoing: speed badge relay ---
+    // Every rate change (VSC-synthetic or native) bubbles to docEl. We read the
+    // playbackRate off the shared DOM node and forward it to the background,
+    // which decides whether this tab is active and updates the toolbar badge.
+    const handleRateChange = (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLMediaElement)) {
+        return;
+      }
+      try {
+        chrome.runtime.sendMessage({ type: 'VSC_SPEED', speed: target.playbackRate });
+      } catch (err) {
+        if (err.message?.includes('Extension context invalidated')) {
+          docEl.removeEventListener('ratechange', handleRateChange, true);
+        }
+      }
+    };
+    docEl.addEventListener('ratechange', handleRateChange, true);
+
     docEl.addEventListener('VSC_WRITE_STORAGE', handleWriteStorage);
   } catch (error) {
     console.error('[VSC] Bridge init failed:', error);
