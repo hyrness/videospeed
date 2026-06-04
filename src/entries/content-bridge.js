@@ -156,7 +156,14 @@ async function init() {
     //   - loadedmetadata/canplay/play: a video that mounts after page load
     //     (SPA players) at its default rate fires no ratechange, so without
     //     these the badge would never reflect a freshly appeared video.
-    // All bubble/capture to docEl; we read playbackRate off the shared DOM node.
+    //
+    // Listen on `window` in the CAPTURE phase — not docEl. inject.js's MAIN-world
+    // event-manager has a `document`-capture ratechange handler that calls
+    // event.stopImmediatePropagation() while fighting back during its own speed
+    // changes. Capture runs window → document → …, and stopImmediatePropagation
+    // halts the shared cross-world dispatch, so a docEl/document listener never
+    // sees VSC-initiated changes. `window` is upstream of `document`, so we read
+    // the rate before event-manager can swallow the event.
     const SPEED_RELAY_EVENTS = ['ratechange', 'loadedmetadata', 'canplay', 'play'];
     const relaySpeed = (e) => {
       const target = e.target;
@@ -168,13 +175,13 @@ async function init() {
       } catch (err) {
         if (err.message?.includes('Extension context invalidated')) {
           for (const type of SPEED_RELAY_EVENTS) {
-            docEl.removeEventListener(type, relaySpeed, true);
+            window.removeEventListener(type, relaySpeed, true);
           }
         }
       }
     };
     for (const type of SPEED_RELAY_EVENTS) {
-      docEl.addEventListener(type, relaySpeed, true);
+      window.addEventListener(type, relaySpeed, true);
     }
 
     docEl.addEventListener('VSC_WRITE_STORAGE', handleWriteStorage);
