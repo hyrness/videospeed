@@ -20,6 +20,15 @@ describe('formatSpeedBadge', () => {
     expect(formatSpeedBadge(16)).toBe('16');
   });
 
+  it('drops to one decimal for two-digit speeds so the badge stays ≤4 chars', () => {
+    expect(formatSpeedBadge(12.5)).toBe('12.5');
+    expect(formatSpeedBadge(10)).toBe('10');
+    // Reachable two-decimal speeds must never exceed 4 chars.
+    for (const speed of [10.25, 11.95, 12.75, 15.95, 16]) {
+      expect(formatSpeedBadge(speed).length).toBeLessThanOrEqual(4);
+    }
+  });
+
   it('returns empty string for null / non-finite / non-number', () => {
     expect(formatSpeedBadge(null)).toBe('');
     expect(formatSpeedBadge(undefined)).toBe('');

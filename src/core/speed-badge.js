@@ -9,6 +9,8 @@
 /**
  * Format a playback rate for the toolbar badge.
  * Trims trailing zeros so 1.00→"1", 1.50→"1.5", 1.75→"1.75", 0.07→"0.07".
+ * Two-digit speeds drop to one decimal (12.75→"12.8") so the badge stays
+ * within ~4 chars, which is all Chrome reliably renders.
  * Invalid / null / non-finite input clears the badge ("").
  *
  * @param {number} speed
@@ -18,7 +20,8 @@ export function formatSpeedBadge(speed) {
   if (typeof speed !== 'number' || !Number.isFinite(speed)) {
     return '';
   }
-  return speed.toFixed(2).replace(/\.?0+$/, '');
+  const decimals = speed >= 10 ? 1 : 2;
+  return speed.toFixed(decimals).replace(/\.?0+$/, '');
 }
 
 /**
