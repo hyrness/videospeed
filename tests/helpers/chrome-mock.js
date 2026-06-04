@@ -88,6 +88,9 @@ export const chromeMock = {
         // Mock message listener
       },
     },
+    sendMessage: (_message, callback) => {
+      setTimeout(() => callback && callback({}), 10);
+    },
   },
   tabs: {
     query: (queryInfo, callback) => {
@@ -105,6 +108,12 @@ export const chromeMock = {
   },
   action: {
     setIcon: (details, callback) => {
+      setTimeout(() => callback && callback(), 10);
+    },
+    setBadgeText: (details, callback) => {
+      setTimeout(() => callback && callback(), 10);
+    },
+    setBadgeBackgroundColor: (details, callback) => {
       setTimeout(() => callback && callback(), 10);
     },
   },
