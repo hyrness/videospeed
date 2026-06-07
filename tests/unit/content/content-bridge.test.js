@@ -481,13 +481,30 @@ describe('content-bridge', () => {
       expect(responses[0]).toEqual({ speed: 1.5 });
     });
 
-    it('returns null when the page has no media', async () => {
+    it('does not respond when the frame has no media', async () => {
+      // tabs.sendMessage broadcasts to every frame and resolves with the FIRST
+      // sendResponse called. A media-less frame (ad iframe) answering
+      // { speed: null } beats the main frame's real speed and wipes the badge
+      // (reproduced on YouTube: googlesyndication iframe always won the race).
+      // Media-less frames must stay silent so media-bearing frames can answer;
+      // if no frame answers, the caller sees lastError and clears the badge.
       const { onMessage } = await loadBridgeWithMessageCapture();
 
       const responses = [];
       onMessage({ type: 'VSC_GET_SPEED' }, {}, (r) => responses.push(r));
 
-      expect(responses[0]).toEqual({ speed: null });
+      expect(responses).toHaveLength(0);
+    });
+
+    it('does not relay VSC_GET_SPEED to MAIN world when the frame has no media', async () => {
+      const { onMessage } = await loadBridgeWithMessageCapture();
+      const { events, cleanup } = collectEvents('VSC_MESSAGE');
+      eventCleanup = cleanup;
+
+      onMessage({ type: 'VSC_GET_SPEED' }, {}, () => {});
+
+      const relayed = events.filter((e) => e.detail?.type === 'VSC_GET_SPEED');
+      expect(relayed).toHaveLength(0);
     });
 
     it('does not relay VSC_GET_SPEED to MAIN world (read-only handled in bridge)', async () => {

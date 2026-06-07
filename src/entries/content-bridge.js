@@ -121,7 +121,15 @@ async function init() {
         if (!target && media.length > 0) {
           target = media[0];
         }
-        sendResponse({ speed: target ? target.playbackRate : null });
+        // Media-less frames must NOT respond: tabs.sendMessage broadcasts to
+        // every frame and resolves with the first sendResponse called, so an
+        // ad iframe answering { speed: null } would beat the main frame's
+        // real speed and wipe the badge/popup display. Staying silent lets
+        // media-bearing frames win; if no frame answers, the caller sees
+        // lastError and falls back (badge clears, popup keeps storage value).
+        if (target) {
+          sendResponse({ speed: target.playbackRate });
+        }
         return;
       }
       docEl.dispatchEvent(new CustomEvent('VSC_MESSAGE', { detail: request }));
