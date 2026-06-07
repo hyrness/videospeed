@@ -116,6 +116,9 @@ export const chromeMock = {
     setBadgeBackgroundColor: (details, callback) => {
       setTimeout(() => callback && callback(), 10);
     },
+    setBadgeTextColor: (details, callback) => {
+      setTimeout(() => callback && callback(), 10);
+    },
   },
 };
 

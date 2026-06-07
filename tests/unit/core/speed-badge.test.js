@@ -44,6 +44,7 @@ function makeChromeApi({ getSpeedResponse = { speed: 1.0 }, lastError = null } =
     action: {
       setBadgeText: vi.fn(),
       setBadgeBackgroundColor: vi.fn(),
+      setBadgeTextColor: vi.fn(),
     },
     tabs: {
       sendMessage: vi.fn((tabId, message, callback) => callback(getSpeedResponse)),
@@ -52,11 +53,12 @@ function makeChromeApi({ getSpeedResponse = { speed: 1.0 }, lastError = null } =
 }
 
 describe('createBadgeController', () => {
-  it('init sets a badge background color', () => {
+  it('init sets a red badge background with white text', () => {
     const api = makeChromeApi();
     const c = createBadgeController(api);
     c.init();
-    expect(api.action.setBadgeBackgroundColor).toHaveBeenCalledTimes(1);
+    expect(api.action.setBadgeBackgroundColor).toHaveBeenCalledWith({ color: '#FF3B30' });
+    expect(api.action.setBadgeTextColor).toHaveBeenCalledWith({ color: '#FFFFFF' });
   });
 
   it('handleSpeedMessage sets the badge for a message from the active tab', () => {

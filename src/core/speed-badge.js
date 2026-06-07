@@ -33,7 +33,7 @@ export function formatSpeedBadge(speed) {
  *
  * @param {{
  *   runtime: { lastError: unknown },
- *   action: { setBadgeText: Function, setBadgeBackgroundColor: Function },
+ *   action: { setBadgeText: Function, setBadgeBackgroundColor: Function, setBadgeTextColor: Function },
  *   tabs: { sendMessage: Function },
  * }} chromeApi
  */
@@ -61,7 +61,10 @@ export function createBadgeController(chromeApi) {
 
   return {
     init() {
-      chromeApi.action.setBadgeBackgroundColor({ color: '#0A84FF' });
+      // Red badge, white text. Text color must be pinned explicitly —
+      // Chrome otherwise auto-picks black/white per theme (Chrome 110+).
+      chromeApi.action.setBadgeBackgroundColor({ color: '#FF3B30' });
+      chromeApi.action.setBadgeTextColor({ color: '#FFFFFF' });
     },
     setEnabled(value) {
       enabled = value !== false;
