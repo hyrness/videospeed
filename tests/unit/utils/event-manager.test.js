@@ -455,4 +455,40 @@ describe('EventManager', () => {
     expect(eventManager.fightCount).toBe(0);
     expect(eventManager.fightTimer).toBe(null);
   });
+
+  describe('setupKeyboardShortcuts in iframe', () => {
+    it('attaches keydown listener to top document when running inside a same-origin iframe', async () => {
+      const config = window.VSC.videoSpeedConfig;
+      await config.load();
+
+      const actionHandler = new window.VSC.ActionHandler(config, null);
+      const eventManager = new window.VSC.EventManager(config, actionHandler);
+
+      // Simulate running inside an iframe
+      const inIframeSpy = vi.spyOn(window.VSC.DomUtils, 'inIframe').mockReturnValue(true);
+
+      // Provide a distinct top document so we can observe registration on it
+      const topDoc = { addEventListener: vi.fn() };
+      const originalTop = window.top;
+      Object.defineProperty(window, 'top', {
+        value: { document: topDoc },
+        configurable: true,
+      });
+
+      try {
+        eventManager.setupKeyboardShortcuts(document);
+
+        // The iframe's media-bearing document must forward keyboard events from
+        // the top document, where keyboard focus usually lives (e.g. NHK radio
+        // player whose <video> sits in a same-origin player iframe).
+        expect(topDoc.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function), true);
+      } finally {
+        inIframeSpy.mockRestore();
+        Object.defineProperty(window, 'top', {
+          value: originalTop,
+          configurable: true,
+        });
+      }
+    });
+  });
 });
