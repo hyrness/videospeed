@@ -56,21 +56,25 @@ function compilePattern(raw) {
 }
 
 /**
- * Match a URL against an array of site rule objects.
- * Returns the first rule whose pattern matches, or null.
+ * Match URL(s) against an array of site rule objects.
+ * Returns the first rule whose pattern matches any of the URLs, or null.
+ * Rule order decides priority — each rule is tested against every URL
+ * before moving to the next rule.
  *
  * @param {Array<{pattern: string}>} rules - Rule objects (must have a `pattern` field)
- * @param {string} href - URL to test
+ * @param {string|string[]} hrefs - URL(s) to test (e.g. frame href + ancestor origins)
  * @returns {Object|null} First matching rule, or null
  */
-export function matchSiteRule(rules, href) {
+export function matchSiteRule(rules, hrefs) {
   if (!rules || !rules.length) {
     return null;
   }
 
+  const urls = Array.isArray(hrefs) ? hrefs : [hrefs];
+
   for (const rule of rules) {
     const regexp = compilePattern(rule.pattern || '');
-    if (regexp && regexp.test(href)) {
+    if (regexp && urls.some((url) => regexp.test(url))) {
       return rule;
     }
   }

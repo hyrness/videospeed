@@ -42,7 +42,12 @@ async function init() {
     // truth. The blacklist is preserved in storage for sync compat with older
     // extension versions but must not shadow siteRules edits.
     const blacklisted = !settings.siteRules && isBlacklisted(settings.blacklist, location.href);
-    const siteRuleMatch = matchSiteRule(settings.siteRules, location.href);
+    // Match against this frame's href AND ancestor frame origins, so a rule
+    // for the embedding site (e.g. ispa.com) also applies to cross-origin
+    // iframe players (e.g. player.vimeo.com). ancestorOrigins is a
+    // Chromium-only DOMStringList (array-like); absent → href only.
+    const frameUrls = [location.href, ...Array.from(location.ancestorOrigins || [])];
+    const siteRuleMatch = matchSiteRule(settings.siteRules, frameUrls);
     const siteDisabled = siteRuleMatch && siteRuleMatch.enabled === false;
     const shouldAbort = disabled || blacklisted || siteDisabled;
 

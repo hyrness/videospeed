@@ -226,6 +226,46 @@ describe('content-bridge', () => {
       expect(events).toHaveLength(1);
       expect(events[0].detail.abort).toBe(true);
     });
+
+    // Cross-origin iframe players (e.g. Vimeo embedded on ispa.com): the
+    // frame's own href never matches the embedding site's rule, so the rule
+    // must also be tested against location.ancestorOrigins (parent origins).
+    describe('ancestor origin matching', () => {
+      afterEach(() => {
+        delete window.location.ancestorOrigins;
+      });
+
+      /** Simulate Chrome's DOMStringList (array-like, not a real Array). */
+      function stubAncestorOrigins(origins) {
+        Object.defineProperty(window.location, 'ancestorOrigins', {
+          value: { length: origins.length, ...origins },
+          configurable: true,
+        });
+      }
+
+      it('signals abort when siteRule disables an ancestor origin', async () => {
+        // Frame itself is http://localhost/ (jsdom default) — no rule matches
+        // it, but the embedding page's origin is disabled.
+        stubAncestorOrigins(['https://www.ispa.com']);
+        getMockStorage().siteRules = [{ pattern: 'ispa.com', enabled: false }];
+
+        const { events, cleanup } = collectEvents('VSC_SETTINGS_READY');
+        eventCleanup = cleanup;
+
+        await loadBridge();
+        docEl.dispatchEvent(new CustomEvent('VSC_REQUEST_SETTINGS'));
+        expect(events).toHaveLength(1);
+        expect(events[0].detail.abort).toBe(true);
+      });
+
+      it('initializes normally when no rule matches frame URL or ancestors', async () => {
+        stubAncestorOrigins(['https://www.example.com']);
+        getMockStorage().siteRules = [{ pattern: 'ispa.com', enabled: false }];
+
+        const onChanged = await loadBridge();
+        expect(onChanged).not.toBeNull();
+      });
+    });
   });
 
   // =========================================================================

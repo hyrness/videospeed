@@ -132,7 +132,14 @@ if (!window.VSC.VideoSpeedConfig) {
         // matchSiteRule is exposed on window.VSC by inject-entry.js; guard for
         // test environments where it may not be available.
         if (window.VSC.matchSiteRule) {
-          const matched = window.VSC.matchSiteRule(this.settings.siteRules, window.location.href);
+          // Include ancestor frame origins so a rule for the embedding site
+          // also applies inside cross-origin iframe players (same URL set as
+          // the bridge's disable check). ancestorOrigins is Chromium-only.
+          const frameUrls = [
+            window.location.href,
+            ...Array.from(window.location.ancestorOrigins || []),
+          ];
+          const matched = window.VSC.matchSiteRule(this.settings.siteRules, frameUrls);
           if (matched && matched.speed !== null && matched.speed !== undefined) {
             this.settings.siteDefaultSpeed = matched.speed;
             window.VSC.logger.info(

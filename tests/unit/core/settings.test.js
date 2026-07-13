@@ -241,6 +241,29 @@ describe('Settings', () => {
     window.VSC.matchSiteRule = original;
   });
 
+  it('site rule matching includes ancestor origins alongside the frame href', async () => {
+    // Cross-origin iframe players: a per-site speed rule for the embedding
+    // site must also apply inside the player's frame, so matchSiteRule must
+    // receive the parent origins, not just this frame's href.
+    Object.defineProperty(window.location, 'ancestorOrigins', {
+      value: { length: 1, 0: 'https://www.ispa.com' },
+      configurable: true,
+    });
+    const config = new window.VSC.VideoSpeedConfig();
+    const original = window.VSC.matchSiteRule;
+    let receivedHrefs;
+    window.VSC.matchSiteRule = (_rules, hrefs) => {
+      receivedHrefs = hrefs;
+      return null;
+    };
+
+    await config.load();
+    expect(receivedHrefs).toEqual([window.location.href, 'https://www.ispa.com']);
+
+    window.VSC.matchSiteRule = original;
+    delete window.location.ancestorOrigins;
+  });
+
   it('lastSpeed reset to null when rememberSpeed is false', async () => {
     // Inject lastSpeed=1.5 into mock storage
     globalThis.chrome.storage.sync.get = (keys, callback) => {

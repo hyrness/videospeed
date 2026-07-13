@@ -87,6 +87,62 @@ describe('SitePattern', () => {
     expect(match.extra).toBe('data');
   });
 
+  // --- matchSiteRule() with multiple URLs (frame href + ancestor origins) ---
+
+  it('matchSiteRule accepts an array of URLs and matches any of them', () => {
+    const rules = [{ pattern: 'ispa.com', enabled: false, speed: null }];
+    const match = matchSiteRule(rules, [
+      'https://player.vimeo.com/video/487870393?h=e20a4b2f3e',
+      'https://www.ispa.com',
+    ]);
+    expect(match).toBeDefined();
+    expect(match.enabled).toBe(false);
+  });
+
+  it('matchSiteRule returns null when no URL in the array matches', () => {
+    const rules = [{ pattern: 'ispa.com', enabled: false, speed: null }];
+    expect(matchSiteRule(rules, ['https://player.vimeo.com/video/1', 'https://example.com'])).toBe(
+      null
+    );
+  });
+
+  it('matchSiteRule keeps rule-order priority across multiple URLs', () => {
+    // Rule order decides priority, not URL order: the first rule matches the
+    // second URL and must win over the second rule matching the first URL.
+    const rules = [
+      { pattern: 'ispa.com', enabled: true, speed: 1.5 },
+      { pattern: 'vimeo.com', enabled: false, speed: null },
+    ];
+    const match = matchSiteRule(rules, [
+      'https://player.vimeo.com/video/1',
+      'https://www.ispa.com',
+    ]);
+    expect(match.pattern).toBe('ispa.com');
+  });
+
+  it('matchSiteRule tests each URL independently (anchored regex matches non-first URL)', () => {
+    // Guards against implementations that coerce the array to one joined
+    // string: ^ would then only anchor to the first URL.
+    const rules = [{ pattern: '/^https:\\/\\/www\\.ispa\\.com/', enabled: false, speed: null }];
+    const match = matchSiteRule(rules, [
+      'https://player.vimeo.com/video/1',
+      'https://www.ispa.com',
+    ]);
+    expect(match).toBeDefined();
+    expect(match.enabled).toBe(false);
+  });
+
+  it('matchSiteRule does not match substrings spanning URL boundaries', () => {
+    // 'com/1,https' only exists in the comma-joined form of the two URLs.
+    const rules = [{ pattern: 'com/1,https', enabled: false, speed: null }];
+    expect(matchSiteRule(rules, ['https://player.vimeo.com/1', 'https://www.ispa.com'])).toBe(null);
+  });
+
+  it('matchSiteRule returns null for an empty URL array', () => {
+    const rules = [{ pattern: 'ispa.com', enabled: false, speed: null }];
+    expect(matchSiteRule(rules, [])).toBe(null);
+  });
+
   // --- isBlacklisted() backward compat ---
 
   it('isBlacklisted still works with legacy string format', () => {

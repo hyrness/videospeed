@@ -39,6 +39,8 @@ async function runE2ETests() {
     testFiles = ['settings-injection.e2e.js'];
   } else if (testType === 'display') {
     testFiles = ['display-toggle.e2e.js'];
+  } else if (testType === 'site-rules-iframe') {
+    testFiles = ['site-rules-iframe.e2e.js'];
   } else {
     // Run all tests
     testFiles = [
@@ -46,6 +48,7 @@ async function runE2ETests() {
       'youtube.e2e.js',
       'settings-injection.e2e.js',
       'display-toggle.e2e.js',
+      'site-rules-iframe.e2e.js',
     ];
   }
 
