@@ -61,7 +61,7 @@ describe('Settings', () => {
     await config.load();
 
     const fasterValue = config.getKeyBinding('faster');
-    expect(fasterValue).toBe(0.1);
+    expect(fasterValue).toBe(0.25);
 
     config.setKeyBinding('faster', 0.2);
     const updatedValue = config.getKeyBinding('faster');

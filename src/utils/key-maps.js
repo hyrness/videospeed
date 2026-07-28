@@ -221,8 +221,10 @@ export const PREDEFINED_ACTIONS = [
  * migration Phase 4 (background.js), and restore_defaults (options.js).
  */
 export const DEFAULT_BINDINGS = Object.freeze({
-  slower: { code: 'KeyS', key: 83, keyCode: 83, displayKey: 's', value: 0.1 },
-  faster: { code: 'KeyD', key: 68, keyCode: 68, displayKey: 'd', value: 0.1 },
+  // 0.25 matches the popup preset granularity (1.25/1.5/1.75/…) so keyboard
+  // steps land on the same values as the preset buttons.
+  slower: { code: 'KeyS', key: 83, keyCode: 83, displayKey: 's', value: 0.25 },
+  faster: { code: 'KeyD', key: 68, keyCode: 68, displayKey: 'd', value: 0.25 },
   rewind: { code: 'KeyZ', key: 90, keyCode: 90, displayKey: 'z', value: 10 },
   advance: { code: 'KeyX', key: 88, keyCode: 88, displayKey: 'x', value: 10 },
   reset: { code: 'KeyR', key: 82, keyCode: 82, displayKey: 'r', value: 1.0 },

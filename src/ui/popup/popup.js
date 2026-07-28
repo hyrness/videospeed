@@ -92,8 +92,8 @@ document.addEventListener('DOMContentLoaded', () => {
       activeHostname = tab && tab.url ? normalizeHostname(tab.url) : null;
 
       chrome.storage.sync.get(null, (storage) => {
-        let slowerStep = 0.1;
-        let fasterStep = 0.1;
+        let slowerStep = 0.25;
+        let fasterStep = 0.25;
         let resetSpeed = 1.0;
 
         if (storage.keyBindings && Array.isArray(storage.keyBindings)) {

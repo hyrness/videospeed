@@ -52,6 +52,15 @@ describe('KeyboardShortcutsSaving', () => {
     });
   });
 
+  it('DEFAULT_SETTINGS slower/faster step should match popup preset granularity (0.25)', () => {
+    const defaults = window.VSC.Constants.DEFAULT_SETTINGS;
+    const slower = defaults.keyBindings.find((b) => b.action === 'slower');
+    const faster = defaults.keyBindings.find((b) => b.action === 'faster');
+
+    expect(slower.value).toBe(0.25);
+    expect(faster.value).toBe(0.25);
+  });
+
   it('DEFAULT_SETTINGS keyBindings should have proper structure', () => {
     const defaults = window.VSC.Constants.DEFAULT_SETTINGS;
 

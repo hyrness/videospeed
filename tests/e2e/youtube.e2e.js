@@ -166,26 +166,26 @@ export default async function runYouTubeE2ETests() {
       const baseSpeed = await getVideoSpeed(page, 'video.html5-main-video');
       console.log(`   🔍 Speed after baseline reset: ${baseSpeed}`);
 
-      // Make multiple speed changes
-      await controlVideo(page, 'faster'); // Should be ~1.1
+      // Make multiple speed changes (default step is 0.25)
+      await controlVideo(page, 'faster'); // Should be ~1.25
       const speed1 = await getVideoSpeed(page, 'video.html5-main-video');
       console.log(`   🔍 Speed after 1st faster: ${speed1}`);
 
-      await controlVideo(page, 'faster'); // Should be ~1.2
+      await controlVideo(page, 'faster'); // Should be ~1.5
       const speed2 = await getVideoSpeed(page, 'video.html5-main-video');
       console.log(`   🔍 Speed after 2nd faster: ${speed2}`);
 
-      await controlVideo(page, 'faster'); // Should be ~1.3
+      await controlVideo(page, 'faster'); // Should be ~1.75
       const finalSpeed = await getVideoSpeed(page, 'video.html5-main-video');
       console.log(`   🔍 Final speed after 3rd faster: ${finalSpeed}`);
 
       assert.true(
-        finalSpeed > 1.25,
-        `Multiple speed increases should accumulate (expected > 1.25, got ${finalSpeed})`
+        finalSpeed > 1.7,
+        `Multiple speed increases should accumulate (expected ~1.75, got ${finalSpeed})`
       );
       assert.true(
-        finalSpeed < 1.35,
-        `Speed should not increase too much (expected < 1.35, got ${finalSpeed})`
+        finalSpeed < 1.8,
+        `Speed should not increase too much (expected ~1.75, got ${finalSpeed})`
       );
 
       console.log(`   🔄 Final speed after multiple changes: ${finalSpeed}`);
