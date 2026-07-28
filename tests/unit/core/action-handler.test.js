@@ -620,6 +620,62 @@ describe('ActionHandler', () => {
     expect(video2.playbackRate).toBe(2.0);
   });
 
+  it('setSpeed dispatches VSC_PERSIST_SPEED for user-driven changes even when rememberSpeed is off', async () => {
+    const config = window.VSC.videoSpeedConfig;
+    await config.load();
+    config.settings.rememberSpeed = false;
+
+    const eventManager = new window.VSC.EventManager(config, null);
+    const actionHandler = new window.VSC.ActionHandler(config, eventManager);
+
+    const mockVideo = createMockVideo({
+      playbackRate: 1.0,
+      currentSrc: 'https://example.com/video.mp4',
+    });
+    mockVideo.vsc = {
+      div: mockDOM.container,
+      speedIndicator: { textContent: '1.00' },
+    };
+
+    const persisted = [];
+    const listener = (e) => persisted.push(e.detail);
+    document.documentElement.addEventListener('VSC_PERSIST_SPEED', listener);
+
+    actionHandler.setSpeed(mockVideo, 1.75, 'internal');
+
+    document.documentElement.removeEventListener('VSC_PERSIST_SPEED', listener);
+    expect(persisted).toEqual([{ speed: 1.75 }]);
+  });
+
+  it('setSpeed does not dispatch VSC_PERSIST_SPEED for noPersist, external, or init changes', async () => {
+    const config = window.VSC.videoSpeedConfig;
+    await config.load();
+    config.settings.rememberSpeed = false;
+
+    const eventManager = new window.VSC.EventManager(config, null);
+    const actionHandler = new window.VSC.ActionHandler(config, eventManager);
+
+    const mockVideo = createMockVideo({
+      playbackRate: 1.0,
+      currentSrc: 'https://example.com/video.mp4',
+    });
+    mockVideo.vsc = {
+      div: mockDOM.container,
+      speedIndicator: { textContent: '1.00' },
+    };
+
+    const persisted = [];
+    const listener = (e) => persisted.push(e.detail);
+    document.documentElement.addEventListener('VSC_PERSIST_SPEED', listener);
+
+    actionHandler.setSpeed(mockVideo, 1.75, 'internal', { noPersist: true });
+    actionHandler.setSpeed(mockVideo, 1.5, 'external');
+    actionHandler.setSpeed(mockVideo, 1.25, 'init');
+
+    document.documentElement.removeEventListener('VSC_PERSIST_SPEED', listener);
+    expect(persisted).toEqual([]);
+  });
+
   it('rememberSpeed: true should only store global speed', async () => {
     const config = window.VSC.videoSpeedConfig;
     await config.load();

@@ -12,6 +12,7 @@
 
 import { isBlacklisted } from '../utils/blacklist.js';
 import { matchSiteRule } from '../utils/site-pattern.js';
+import { normalizeHostname } from '../utils/hostname.js';
 
 // Speed limits for page→bridge write validation.
 // Duplicated from constants.js (ISOLATED world can't import page modules).
@@ -198,6 +199,67 @@ async function init() {
     }
 
     docEl.addEventListener('VSC_WRITE_STORAGE', handleWriteStorage);
+
+    // --- Ongoing: scope-routed speed persistence from MAIN world ---
+    // Keyboard/controller speed changes follow the popup's saved scope:
+    //   domain → domainSpeeds[<top-level hostname>], global → globalSpeed,
+    //   tab or never-set popupScope → not persisted (stock behavior).
+    // The bridge owns hostname + scope resolution, so the MAIN world can only
+    // influence a clamped numeric speed (same trust boundary as VSC_WRITE_STORAGE).
+    // Debounced: key-repeat fires a burst of events and chrome.storage.sync
+    // has write quotas, so only the settled value is written.
+    let persistSpeedTimer = null;
+    let pendingPersistSpeed = null;
+    const PERSIST_SPEED_DEBOUNCE_MS = 1000;
+    const handlePersistSpeed = (e) => {
+      const speed = e.detail?.speed;
+      if (typeof speed !== 'number' || !Number.isFinite(speed)) {
+        return;
+      }
+      pendingPersistSpeed = Math.min(Math.max(speed, SPEED_MIN), SPEED_MAX);
+      if (persistSpeedTimer) {
+        clearTimeout(persistSpeedTimer);
+      }
+      persistSpeedTimer = setTimeout(() => {
+        persistSpeedTimer = null;
+        const speedToSave = pendingPersistSpeed;
+        pendingPersistSpeed = null;
+        try {
+          chrome.storage.sync.get({ popupScope: null, domainSpeeds: {} }, (stored) => {
+            if (stored.popupScope === 'global') {
+              chrome.storage.sync.set({ globalSpeed: speedToSave });
+            } else if (stored.popupScope === 'domain') {
+              // Key by the top-level page's hostname so keyboard writes land on
+              // the same entry the popup reads/writes (popup keys by tab URL).
+              // Inside cross-origin iframes the outermost ancestorOrigins entry
+              // is the top-level origin (Chromium-only; falls back to own href).
+              const topHref =
+                window.self === window.top
+                  ? location.href
+                  : location.ancestorOrigins && location.ancestorOrigins.length
+                    ? location.ancestorOrigins[location.ancestorOrigins.length - 1]
+                    : location.href;
+              const hostname = normalizeHostname(topHref);
+              if (!hostname) {
+                return;
+              }
+              const domainSpeeds =
+                stored.domainSpeeds && typeof stored.domainSpeeds === 'object'
+                  ? stored.domainSpeeds
+                  : {};
+              chrome.storage.sync.set({
+                domainSpeeds: { ...domainSpeeds, [hostname]: speedToSave },
+              });
+            }
+          });
+        } catch (err) {
+          if (err.message?.includes('Extension context invalidated')) {
+            docEl.removeEventListener('VSC_PERSIST_SPEED', handlePersistSpeed);
+          }
+        }
+      }, PERSIST_SPEED_DEBOUNCE_MS);
+    };
+    docEl.addEventListener('VSC_PERSIST_SPEED', handlePersistSpeed);
   } catch (error) {
     console.error('[VSC] Bridge init failed:', error);
   }

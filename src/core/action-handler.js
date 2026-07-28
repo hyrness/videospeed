@@ -516,6 +516,16 @@ class ActionHandler {
       this.config.save({ lastSpeed: numericSpeed });
     }
 
+    // 6b. Scope-routed persistence: the ISOLATED-world bridge resolves the
+    //     popup's saved scope (domain/global/tab) and writes storage itself —
+    //     the MAIN world must not name storage keys (trust boundary).
+    //     'init' is a lifecycle restore, not a user choice — don't persist it.
+    if (source !== 'external' && source !== 'init' && !noPersist) {
+      document.documentElement.dispatchEvent(
+        new CustomEvent('VSC_PERSIST_SPEED', { detail: { speed: numericSpeed } })
+      );
+    }
+
     // 7. Flash controller briefly for visual feedback
     if (video.vsc?.div) {
       this.flashController(video.vsc.div);

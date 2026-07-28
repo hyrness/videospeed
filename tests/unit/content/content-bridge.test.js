@@ -361,6 +361,93 @@ describe('content-bridge', () => {
   });
 
   // =========================================================================
+  // VSC_PERSIST_SPEED — scope-routed persistence (keyboard follows popupScope)
+  // =========================================================================
+
+  describe('VSC_PERSIST_SPEED scope persistence', () => {
+    it('writes domainSpeeds[hostname] when popupScope is domain', async () => {
+      getMockStorage().popupScope = 'domain';
+      getMockStorage().domainSpeeds = { 'example.com': 1.5 };
+      await loadBridge();
+
+      docEl.dispatchEvent(new CustomEvent('VSC_PERSIST_SPEED', { detail: { speed: 2 } }));
+      await vi.advanceTimersByTimeAsync(1100);
+
+      // jsdom URL is http://localhost/ → normalized hostname 'localhost'.
+      // Existing entries for other hosts must be preserved.
+      expect(getMockStorage().domainSpeeds).toEqual({ 'example.com': 1.5, localhost: 2 });
+      expect(getMockStorage().globalSpeed).toBeUndefined();
+    });
+
+    it('writes globalSpeed when popupScope is global', async () => {
+      getMockStorage().popupScope = 'global';
+      await loadBridge();
+
+      docEl.dispatchEvent(new CustomEvent('VSC_PERSIST_SPEED', { detail: { speed: 1.75 } }));
+      await vi.advanceTimersByTimeAsync(1100);
+
+      expect(getMockStorage().globalSpeed).toBe(1.75);
+      expect(getMockStorage().domainSpeeds).toBeUndefined();
+    });
+
+    it('persists nothing when popupScope is tab', async () => {
+      getMockStorage().popupScope = 'tab';
+      await loadBridge();
+
+      docEl.dispatchEvent(new CustomEvent('VSC_PERSIST_SPEED', { detail: { speed: 2 } }));
+      await vi.advanceTimersByTimeAsync(1100);
+
+      expect(getMockStorage().globalSpeed).toBeUndefined();
+      expect(getMockStorage().domainSpeeds).toBeUndefined();
+    });
+
+    it('persists nothing when popupScope was never set (stock behavior preserved)', async () => {
+      await loadBridge();
+
+      docEl.dispatchEvent(new CustomEvent('VSC_PERSIST_SPEED', { detail: { speed: 2 } }));
+      await vi.advanceTimersByTimeAsync(1100);
+
+      expect(getMockStorage().globalSpeed).toBeUndefined();
+      expect(getMockStorage().domainSpeeds).toBeUndefined();
+    });
+
+    it('debounces rapid changes into a single write with the last value', async () => {
+      getMockStorage().popupScope = 'global';
+      await loadBridge();
+
+      let setCalls = 0;
+      const origSet = globalThis.chrome.storage.sync.set;
+      globalThis.chrome.storage.sync.set = (items, cb) => {
+        setCalls += 1;
+        return origSet(items, cb);
+      };
+
+      for (const speed of [1.1, 1.2, 1.3, 1.4, 1.5]) {
+        docEl.dispatchEvent(new CustomEvent('VSC_PERSIST_SPEED', { detail: { speed } }));
+      }
+      await vi.advanceTimersByTimeAsync(1100);
+      globalThis.chrome.storage.sync.set = origSet;
+
+      expect(setCalls).toBe(1);
+      expect(getMockStorage().globalSpeed).toBe(1.5);
+    });
+
+    it('clamps speed to valid range and ignores invalid values', async () => {
+      getMockStorage().popupScope = 'global';
+      await loadBridge();
+
+      docEl.dispatchEvent(new CustomEvent('VSC_PERSIST_SPEED', { detail: { speed: 99 } }));
+      await vi.advanceTimersByTimeAsync(1100);
+      expect(getMockStorage().globalSpeed).toBe(16);
+
+      docEl.dispatchEvent(new CustomEvent('VSC_PERSIST_SPEED', { detail: { speed: 'fast' } }));
+      docEl.dispatchEvent(new CustomEvent('VSC_PERSIST_SPEED', { detail: null }));
+      await vi.advanceTimersByTimeAsync(1100);
+      expect(getMockStorage().globalSpeed).toBe(16);
+    });
+  });
+
+  // =========================================================================
   // Lifecycle — teardown/reinit on storage changes
   // =========================================================================
 
